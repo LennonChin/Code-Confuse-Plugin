@@ -58,13 +58,13 @@ class ConfuseBiz(object):
     @staticmethod
     def create_confuse_file(output_file, confused_dict):
         log_info("Start creating confuse file, file fullpath is {0}".format(os.path.realpath(output_file)), 2, True)
-        f = open(output_file, 'w')
-        f.write('#define NEED_CONFUSE 1\n')
-        f.write('#if NEED_CONFUSE\n')
-        f.write('// create time at {0}\n'.format(datetime.now()))
+        f = open(output_file, 'wb')
+        f.write(bytes('#define NEED_CONFUSE 1\n', encoding='utf-8'))
+        f.write(bytes('#if NEED_CONFUSE\n', encoding='utf-8'))
+        f.write(bytes('// create time at {0}\n'.format(datetime.now()), encoding='utf-8'))
         for (key, value) in confused_dict.items():
-            f.write('#define {0} {1}\n'.format(key, value))
-        f.write('#endif')
+            f.write(bytes('#define {0} {1}\n'.format(key, value), encoding='utf-8'))
+        f.write(bytes('#endif', encoding='utf-8'))
         f.close()
         log_info("Complete create confuse file", 2, True)
 
@@ -98,8 +98,12 @@ class DealUserFile(object):
         for _, line in enumerate(file.readlines()):
             # 去前后空格
             line = str(line).strip()
-            # 单行注释内容不用管
-            if line.startswith('//'):
+            # 去除后面的注释
+            search_comment_index = line.find('//')
+            if search_comment_index != -1:
+                line = line[:search_comment_index - 1]
+            # 单行注释、宏定义内容不用管
+            if line.startswith('//') or line.startswith('#'):
                 continue
             # xib连线不用管
             if 'IBAction' in line:
@@ -122,9 +126,14 @@ class DealUserFile(object):
                         # set、get、_开头的方法不用管
                         if re.match(r'^set|^get|^_', match):
                             continue
-                        else:
-                            identifier_array.append(match)
-
+                        # 去除中文
+                        zh_pattern = re.compile(u'[\u4e00-\u9fa5]+')
+                        if zh_pattern.search(match):
+                            continue
+                        # 去除纯数字
+                        if match.isdigit():
+                            continue
+                        identifier_array.append(match)
         return identifier_array
 
 
@@ -232,7 +241,18 @@ class DealCleanIdentifers(object):
                     pattern_search = re.compile(r'[)\s+](\w+):.*?')
                 matches = re.findall(pattern_search, line)
                 if matches:
-                    identifier_array += matches
+                    for match in matches:
+                        # set、get、_开头的方法不用管
+                        if re.match(r'^set|^get|^_', match):
+                            continue
+                        # 去除中文
+                        zh_pattern = re.compile(u'[\u4e00-\u9fa5]+')
+                        if zh_pattern.search(match):
+                            continue
+                        # 去除纯数字
+                        if match.isdigit():
+                            continue
+                        identifier_array.append(match)
         return identifier_array
 
 
@@ -261,7 +281,7 @@ def log_info(info, level=1, to_log_file=False):
         print('\033[0;31m╚═════════════════════════════════════════════════════════════════════════╝\033[0m')
     if to_log_file:
         # 写入文件
-        log_file.write('{0}\n'.format(str(print_infos)))
+        log_file.write('{0}\n'.format(bytes(print_infos, encoding='utf-8')))
 
 
 def usage():
@@ -327,10 +347,10 @@ if __name__ == '__main__':
 
     log_info("Start writing System identifiers into Dict File, File fullpath is {0}".format(
         os.path.join(output_dir, 'system_identifiers.data')), 1, True)
-    system_identifiers_record_file = open(os.path.join(output_dir, 'system_identifiers.data'), 'w')
+    system_identifiers_record_file = open(os.path.join(output_dir, 'system_identifiers.data'), 'wb')
     for item in system_identifiers:
-        system_identifiers_record_file.write(item)
-        system_identifiers_record_file.write('\n')
+        system_identifiers_record_file.write(bytes(item, encoding='utf-8'))
+        system_identifiers_record_file.write(bytes('\n', encoding='utf-8'))
     # 关闭文件读写
     system_identifiers_record_file.close()
     log_info("Complete write System identifiers into Dict File", 1, True)
@@ -340,10 +360,10 @@ if __name__ == '__main__':
     clean_identifiers = DealCleanIdentifers(clean_dirs).parse_clean_identifiers()
     log_info("Start writing Clean identifiers into Dict File, File fullpath is {0}".format(
         os.path.join(output_dir, 'clean_identifiers.data')), 1, True)
-    clean_identifiers_record_file = open(os.path.join(output_dir, 'clean_identifiers.data'), 'w')
+    clean_identifiers_record_file = open(os.path.join(output_dir, 'clean_identifiers.data'), 'wb')
     for item in clean_identifiers:
-        clean_identifiers_record_file.write(item)
-        clean_identifiers_record_file.write('\n')
+        clean_identifiers_record_file.write(bytes(item, encoding='utf-8'))
+        clean_identifiers_record_file.write(bytes('\n', encoding='utf-8'))
     # 关闭文件读写
     clean_identifiers_record_file.close()
     log_info("Complete write Clean identifiers into Dict File", 1, True)
@@ -360,14 +380,16 @@ if __name__ == '__main__':
     log_info("Start excluding clean identifiers...", 2, True)
     clean_intersect_identifiers = list(set(clean_identifiers).intersection(set(user_identifiers)))
     diff_identifiers = list(set(diff_identifiers).difference(set(clean_intersect_identifiers)))
+    # 重新去重排序
+    diff_identifiers = sorted(list(set(diff_identifiers)))
 
     # 写入文件
     log_info("Start writing need deal files' identifiers into Dict File, File fullpath is {0}".format(
         os.path.join(output_dir, 'user_identifiers.data')), 2, True)
-    user_identifiers_file = open(os.path.join(output_dir, 'user_identifiers.data'), 'w')
+    user_identifiers_file = open(os.path.join(output_dir, 'user_identifiers.data'), 'wb')
     for item in diff_identifiers:
-        user_identifiers_file.write(item)
-        user_identifiers_file.write('\n')
+        user_identifiers_file.write(bytes(item, encoding='utf-8'))
+        user_identifiers_file.write(bytes('\n', encoding='utf-8'))
     user_identifiers_file.close()
     log_info("Complete write need deal files' identifiers into Dict File", 1, True)
 
