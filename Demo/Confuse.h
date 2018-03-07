@@ -1,0 +1,8 @@
+#define NEED_CONFUSE 1
+#if NEED_CONFUSE
+// create time at 2018-03-07 11:08:29.482661
+#define thisIsATestFunctionWithoutParameters EHIFIFFCDEDBDAEHAHJECHHDJABBEFIE
+#define thisIsATestFunctionWithParameter1 FGCCAACHEFDEDEABBEDHDAACEEEFFDDB
+#define thisIsAPublicFunctionWithParameter1 BCCAFCBBAAACDACBJAJJGEJHDCAHIFAJ
+#define thisIsAPublicFunctionWithoutParameters FBIBCDBBEDJADFIBBBFJIJACCFJIAACE
+#endif
