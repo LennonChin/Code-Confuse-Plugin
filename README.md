@@ -34,6 +34,8 @@ Based on the above principle, the obfuscation error generated in most cases can 
 - Swift code directory; (theoretically not scan replace, can be used to exclude bridging files)
 - Output file directory; After running the script will produce multiple log files, as well as the final need to use the confusion header file;
 
+> Note：Suggest to use absolute paths, some problems may be caused by using relative paths.
+
 4. After confirming the above items, locate the Confuse.py file in the root directory of the repository and run it with the following command line template:
 
 ```shell
