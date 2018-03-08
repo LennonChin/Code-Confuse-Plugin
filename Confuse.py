@@ -9,6 +9,11 @@ from datetime import datetime
 
 
 class ConfuseBiz(object):
+    # save configs
+    @staticmethod
+    def save_configs(configs):
+        ConfuseBiz.configs = configs
+
     # 扫描某个目录，返回以特定后缀结尾的所有文件
     @staticmethod
     def scan_path(input_dirs, exclusive_dirs, suffixs):
@@ -22,7 +27,8 @@ class ConfuseBiz(object):
                     if exclusive_dirs:
                         for exclusive_dir in exclusive_dirs:
                             if os.path.join(input_dir, filename) == os.path.realpath(exclusive_dir):
-                                log_info('Skipping system direction {0}'.format(os.path.join(input_dir, filename)), 2, True)
+                                log_info('Skipping system direction {0}'.format(os.path.join(input_dir, filename)), 2,
+                                         True)
                                 continue
                             else:
                                 filelist.extend(
@@ -38,6 +44,79 @@ class ConfuseBiz(object):
                     if matches:
                         filelist.append((input_dir, filename))
         return filelist
+
+    @staticmethod
+    def pre_format_file(file_path):
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            file = open(file_path, 'r', encoding='utf-8', errors='ignore')
+            try:
+                file_content = file.read()
+            except Exception as e:
+                try:
+                    file = open(file_path, 'r', encoding='ascii', errors='ignore')
+                    file_content = file.read()
+                except Exception as e:
+                    try:
+                        file = open(file_path, 'r', encoding='ISO-8859-1', errors='ignore')
+                        file_content = file.read()
+                    except Exception as e:
+                        try:
+                            file = open(file_path, 'r', encoding='gbk', errors='ignore')
+                            file_content = file.read()
+                        except Exception as e:
+                            try:
+                                file = open(file_path, 'r', encoding='Windows-1252', errors='ignore')
+                                file_content = file.read()
+                            except Exception as e:
+                                log_file('no compatible encoding with ascii, utf-8, ISO-8859-1, gbk and Windows-1252, please have a self-check. {0}'.e, 3, True)
+                            finally:
+                                file.close()
+                        finally:
+                            file.close()
+                    finally:
+                        file.close()
+                finally:
+                    file.close()
+            finally:
+                file.close()
+
+            # 去除注释
+            file_content = ConfuseBiz.filter_useless_chars(file_content)
+
+            # 去除空白行
+            cleaned_lines = ConfuseBiz.clean_blank_lines(file_content)
+            return cleaned_lines
+        else:
+            return []
+
+    @staticmethod
+    def clean_blank_lines(file_content):
+        lines = file_content.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            if len(line.strip()) != 0:
+                cleaned_lines.append(line)
+
+        return cleaned_lines
+
+    # 过滤无用字符
+    @staticmethod
+    def filter_useless_chars(file_content):
+        # 移除单行注释和多行注释
+        def _remove_comments(string):
+            pattern = r"(\".*?\"|\'.*?\')|(/\*.*?\*/|//[^\r\n]*$)"
+            regex = re.compile(pattern, re.MULTILINE | re.DOTALL)
+
+            def _replacer(match):
+                if match.group(2) is not None:
+                    return ""
+                else:
+                    return match.group(1)
+
+            return regex.sub(_replacer, string)
+
+        file_str = _remove_comments(file_content)
+        return file_str
 
     # 生成唯一的字符串
     @staticmethod
@@ -90,20 +169,18 @@ class DealUserFile(object):
     # 挑选用户文件中的关键字
     def __parse_user_file_content(self, file_path, filename):
         file_local = os.path.join(file_path, filename)
-        file = open(file_local, "r", encoding='utf-8')
+        file_lines = ConfuseBiz.pre_format_file(file_local)
         # 读取文件行
         identifier_array = []
         # 一行一行的读取文件
         log_info("Start extracting confusing identifiers {0} ".format(file_local), 0, True)
-        for _, line in enumerate(file.readlines()):
-            # 去前后空格
-            line = str(line).strip()
+        for line in file_lines:
             # 去除后面的注释
             search_comment_index = line.find('//')
             if search_comment_index != -1:
                 line = line[:search_comment_index - 1]
             # 单行注释、宏定义内容不用管
-            if line.startswith('//') or line.startswith('#'):
+            if line.startswith('#'):
                 continue
             # xib连线不用管
             if 'IBAction' in line:
@@ -116,7 +193,6 @@ class DealUserFile(object):
                 # 判断参数个数
                 parameter_pattern = re.compile(r'.*?(\(.*?\)).*?')
                 if len(re.findall(parameter_pattern, line)) <= 1:
-                    # 检测'- (NSInteger)tableView {'
                     pattern_search = re.compile(r'[)\s+](\w+):?.*?')
                 else:
                     pattern_search = re.compile(r'[)\s+](\w+):.*?')
@@ -159,18 +235,13 @@ class DealSystemIdentifiers(object):
     # 挑选系统文件中的关键字
     def __parse_system_file_content(self, file_path, filename):
         file_local = os.path.join(file_path, filename)
-        file = open(file_local, "rb")
+        file_lines = ConfuseBiz.pre_format_file(file_local)
         identifier_array = []
         # 读取文件行
         pattern_split = re.compile(r'\W')
         pattern_clean = re.compile(r'[\s+\W*\d+]')
         log_info("Start extracting system identifiers {0} ".format(file_local), 0, True)
-        for _, line in enumerate(file.readlines()):
-            # 去前后空格
-            line = str(line).strip()
-            # 单行注释内容不用管
-            if re.match(r'^//', line):
-                continue
+        for line in file_lines:
             matches = re.split(pattern_split, line)
             if len(matches):
                 # 遍历结果集，去除无用结果
@@ -206,12 +277,10 @@ class DealCleanIdentifers(object):
     # 挑选需要排除的文件中的关键字
     def __parse_clean_file_content(self, file_path, filename):
         file_local = os.path.join(file_path, filename)
-        file = open(file_local, "r", encoding='utf-8')
+        file_lines = ConfuseBiz.pre_format_file(file_local)
         # 读取文件行
         identifier_array = []
-        for _, line in enumerate(file.readlines()):
-            # 去前后空格
-            line = str(line).strip()
+        for line in file_lines:
             # @property
             if line.startswith('@property'):
                 pattern_search = re.compile(r'[\s+|*](\w*);$')
@@ -281,7 +350,7 @@ def log_info(info, level=1, to_log_file=False):
         print('\033[0;31m╚═════════════════════════════════════════════════════════════════════════╝\033[0m')
     if to_log_file:
         # 写入文件
-        log_file.write('{0}\n'.format(bytes(print_infos, encoding='utf-8')))
+        log_file.write('{0}\n'.format(print_infos))
 
 
 def usage():
@@ -334,8 +403,18 @@ if __name__ == '__main__':
         log_info("Reason: Exit in reason 请输入需要处理文件的目录。可使用-h参数查看帮助", 3, False)
         sys.exit()
     if not output_dir:
-        log_info('Reason: Exit in reason 请输入输出文件的文件名。可使用-h参数查看帮助', 3, False)
+        log_info('Reason: Exit in reason 请输入输出文件的目录。可使用-h参数查看帮助', 3, False)
         sys.exit()
+
+    # 保存配置信息
+    configs = {
+        'input_dirs': input_dirs,
+        'system_dirs': system_dirs,
+        'exclusive_dirs': exclusive_dirs,
+        'clean_dirs': clean_dirs,
+        'output_dir': output_dir
+    }
+    ConfuseBiz.save_configs(configs)
 
     # 初始化日志打印文件
     log_file = open(os.path.join(output_dir, 'confuse_log.log'), 'w')

@@ -15,7 +15,7 @@ In fact, the implementation of the plug-in is very simple, extract the user-writ
 Based on the above rules (which may be missing), the script takes a relatively simple approach to avoid:
 
 1. Only scan the .h and .m files, only scan the method name. (For attribute names, I've tried scanning, but due to the variety of attribute access, I do not recommend obfuscation and extra work)
-2. For the system library, let the user manually specify, this can be extracted directly to the system library header files, the script will automatically scan all the system keywords, do the exclusion. (To iOS11 SDK for example, the system key about 90,000);
+2. For the system library, let the user manually specify, this can be extracted directly to the system library header files, the script will automatically scan all the system keywords, do the exclusion. (For example, in iOS11 SDK the count of system keys is about 60,000);
 3. Swift code can be directly excluded from the scan directory;
 4. For third-party libraries, users can manually specify directories, scripts automatically scan for extracted keywords, and avoid them when confused.
 
